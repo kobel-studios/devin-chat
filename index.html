@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DevinChat</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --sidebar: #11161d;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --danger: #f85149;
+    --ok: #3fb950;
+    --hover: #1f2630;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Top bar */
+  header {
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header .badge {
+    font-size: 11px; padding: 2px 7px; border-radius: 8px;
+    background: var(--border); color: var(--muted);
+  }
+  header .status {
+    margin-left: auto; font-size: 11px; color: var(--muted);
+  }
+  header .status .dot {
+    display: inline-block; width: 7px; height: 7px;
+    border-radius: 50%; background: var(--ok);
+    margin-right: 5px; vertical-align: middle;
+  }
+  header .status.offline .dot { background: var(--danger); }
+
+  /* Main layout */
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 10px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-header button {
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 4px; padding: 3px 8px; font-size: 11px;
+    cursor: pointer; font-weight: 600;
+  }
+  .sidebar-header button:hover { opacity: 0.85; }
+  .room-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .room-tab {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .room-tab:hover { background: var(--hover); }
+  .room-tab.active {
+    background: var(--hover);
+    border-left-color: var(--accent);
+    color: #fff;
+  }
+  .room-tab .icon { font-size: 14px; opacity: 0.7; }
+  .room-tab .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-tab .count {
+    font-size: 10px; background: var(--border); color: var(--muted);
+    padding: 1px 5px; border-radius: 8px;
+  }
+  .room-tab.active .count { background: var(--accent); color: #fff; }
+
+  /* Chat area */
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .chat-header {
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .chat-header .room-type {
+    font-size: 11px; color: var(--muted); font-weight: 400;
+  }
+  .chat-header .join-btn {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 3px 10px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .chat-header .join-btn:hover { opacity: 0.85; }
+  .chat-header .members-list {
+    font-size: 11px; color: var(--muted); font-weight: 400;
+    margin-left: 4px;
+  }
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+  }
+  .msg {
+    margin: 4px 0;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: var(--panel);
+    border-left: 3px solid var(--accent);
+    word-wrap: break-word;
+  }
+  .msg .meta { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .msg .sender { color: var(--accent); font-weight: 600; }
+  .msg .sender.role-user { color: #f0883e; }
+  .msg .sender.role-moderator { color: #3fb950; }
+  .msg .sender.role-ai { color: var(--accent); }
+  .msg .sender.role-ai2 { color: #f85149; }
+  .msg .role-tag { font-size: 9px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; font-weight: 400; }
+  .msg .role-tag.role-user { background: #f0883e33; color: #f0883e; }
+  .msg .role-tag.role-moderator { background: #3fb95033; color: #3fb950; }
+  .msg .role-tag.role-ai { background: #58a6ff33; color: var(--accent); }
+  .msg .role-tag.role-ai2 { background: #f8514933; color: #f85149; }
+  .msg .text { white-space: pre-wrap; }
+  .msg img {
+    max-width: 400px;
+    max-height: 300px;
+    border-radius: 6px;
+    margin-top: 6px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+  }
+  .msg img:hover { border-color: var(--accent); }
+  .img-preview-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .img-preview-bar img {
+    max-height: 60px;
+    max-width: 80px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+  .img-preview-bar .remove-img {
+    font-size: 11px;
+    color: var(--danger);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 2px 6px;
+  }
+  .img-preview-bar .remove-img:hover { text-decoration: underline; }
+  #attachBtn {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  #attachBtn:hover { border-color: var(--accent); }
+
+  /* Controls */
+  .controls {
+    padding: 10px 16px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  input, button {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  input:focus { outline: 1px solid var(--accent); }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  #micBtn {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  #micBtn.listening {
+    background: var(--danger);
+    border-color: var(--danger);
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  #sender { width: 120px; flex-shrink: 0; }
+  #text { flex: 1; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    width: 360px;
+    max-width: 90vw;
+  }
+  .modal h2 { font-size: 15px; margin-bottom: 14px; }
+  .modal label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+  .modal input, .modal select {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  .modal .actions {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .modal .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DevinChat</h1>
+  <span class="badge">safety rails ON</span>
+  <span class="status" id="status"><span class="dot"></span>connected</span>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span>Rooms</span>
+      <button onclick="showCreateModal()">+ New</button>
+    </div>
+    <div class="room-list" id="roomList"></div>
+  </div>
+
+  <!-- Chat area -->
+  <div class="chat-area">
+    <div class="chat-header">
+      <span id="currentRoomName">general</span>
+      <span class="room-type" id="currentRoomType"></span>
+      <span class="members-list" id="currentRoomMembers"></span>
+      <button class="join-btn" id="joinBtn" onclick="joinRoom()" style="display:none;">Join</button>
+    </div>
+    <div id="chat"></div>
+    <div class="controls">
+      <input id="sender" placeholder="your name" value="human">
+      <input id="text" placeholder="type or click the mic to talk (Enter to send)">
+      <button id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Attach an image">&#128206;</button>
+      <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="onFileSelected(event)">
+      <button id="micBtn" onclick="toggleMic()" title="Click to speak">&#127908;</button>
+      <button onclick="sendMsg()">Send</button>
+      <button onclick="callAllAIs()" id="callAllBtn" title="Tell all AIs to get in the chat" style="background:#f8514933;color:#f85149;border-color:#f85149;">&#128276; Call All</button>
+    </div>
+    <div id="imgPreviewBar" class="img-preview-bar" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- Create room modal -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <h2>Create a room</h2>
+    <label>Room name</label>
+    <input id="newRoomName" placeholder="e.g. bug-hunt, dev-team">
+    <label>Type</label>
+    <select id="newRoomType">
+      <option value="group">Group chat</option>
+      <option value="dm">Direct message (2 people)</option>
+    </select>
+    <label>Members (comma-separated, optional)</label>
+    <input id="newRoomMembers" placeholder="Devin-Pushbacker, Devin-Builder">
+    <div class="hint">For DMs, list exactly 2 names. The room name can be anything.</div>
+    <div class="actions">
+      <button onclick="hideCreateModal()">Cancel</button>
+      <button onclick="createRoom()" style="background:var(--accent);color:#fff;border-color:var(--accent);">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const chatEl = document.getElementById("chat");
+const statusEl = document.getElementById("status");
+const roomListEl = document.getElementById("roomList");
+const currentRoomNameEl = document.getElementById("currentRoomName");
+const currentRoomTypeEl = document.getElementById("currentRoomType");
+const senderInput = document.getElementById("sender");
+const textInput = document.getElementById("text");
+
+let currentRoom = "general";
+let rooms = [];
+let lastTsByRoom = {};   // room -> last timestamp seen
+let seenByRoom = {};      // room -> Set of message keys
+let unreadByRoom = {};    // room -> unread count
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function fmtTime(ts) {
+  return new Date(ts * 1000).toLocaleTimeString();
+}
+
+function roomIcon(type) {
+  return type === "dm" ? "\u2709\uFE0F" : "#";
+}
+
+function renderRoomList() {
+  roomListEl.innerHTML = "";
+  const myName = senderInput.value.trim() || "human";
+  for (const r of rooms) {
+    const tab = document.createElement("div");
+    tab.className = "room-tab" + (r.name === currentRoom ? " active" : "");
+    const unread = unreadByRoom[r.name] || 0;
+    const isMember = r.members && r.members.includes(myName);
+    const memberDot = isMember ? ' <span style="color:var(--ok);font-size:10px;" title="you\'re in this room">&#9679;</span>' : '';
+    tab.innerHTML =
+      '<span class="icon">' + roomIcon(r.type) + '</span>' +
+      '<span class="name">' + escapeHtml(r.name) + memberDot + '</span>' +
+      (unread > 0 ? '<span class="count">' + unread + '</span>' : '');
+    tab.onclick = () => switchRoom(r.name);
+    roomListEl.appendChild(tab);
+  }
+}
+
+let isSwitching = false;
+
+async function switchRoom(name) {
+  isSwitching = true;
+  currentRoom = name;
+  unreadByRoom[name] = 0;
+  // Clear seen set so messages reload fresh when switching back
+  seenByRoom[name] = new Set();
+  chatEl.innerHTML = "";
+  // Reload full history for this room
+  lastTsByRoom[name] = 0;
+  const r = rooms.find(x => x.name === name);
+  currentRoomNameEl.textContent = name;
+  currentRoomTypeEl.textContent = r ? "(" + r.type + ")" : "";
+
+  // Show members and join button
+  const membersEl = document.getElementById("currentRoomMembers");
+  const joinBtn = document.getElementById("joinBtn");
+  const myName = senderInput.value.trim() || "human";
+  if (r) {
+    const memberStr = r.members.length > 0 ? "members: " + r.members.join(", ") : "no members yet";
+    membersEl.textContent = memberStr;
+    const isMember = r.members.includes(myName);
+    joinBtn.style.display = isMember ? "none" : "inline-block";
+  } else {
+    membersEl.textContent = "";
+    joinBtn.style.display = "none";
+  }
+
+  renderRoomList();
+
+  // Load all messages for this room and wait for it to finish
+  await loadRoomMessages(name);
+  isSwitching = false;
+  textInput.focus();
+}
+
+async function loadRoomMessages(name) {
+  try {
+    const r = await fetch("/rooms/messages?room=" + encodeURIComponent(name));
+    const data = await r.json();
+    if (data.messages) {
+      for (const m of data.messages) {
+        addMessage(name, m);
+        if (m.ts > (lastTsByRoom[name] || 0)) lastTsByRoom[name] = m.ts;
+      }
+    }
+  } catch(e) { /* will retry */ }
+}
+
+function addMessage(room, m) {
+  if (room !== currentRoom) return;
+  const key = m.ts + "|" + m.sender + "|" + m.text + "|" + (m.image || "");
+  if (!seenByRoom[room]) seenByRoom[room] = new Set();
+  if (seenByRoom[room].has(key)) return;
+  seenByRoom[room].add(key);
+  const role = m.role || "ai";
+  const roleLabel = role === "user" ? "USER" : role === "moderator" ? "MOD" : role === "ai2" ? "AI2" : "AI";
+  const div = document.createElement("div");
+  div.className = "msg";
+  let html =
+    '<div class="meta"><span class="sender role-' + role + '">' + escapeHtml(m.sender) +
+    '</span><span class="role-tag role-' + role + '">' + roleLabel + '</span> &middot; ' + fmtTime(m.ts) + '</div>' +
+    '<div class="text">' + escapeHtml(m.text) + '</div>';
+  if (m.image) {
+    html += '<img src="' + escapeHtml(m.image) + '" onclick="window.open(this.src, \'_blank\')" title="Click to open full size">';
+  }
+  div.innerHTML = html;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+let knownMsgCounts = {};  // room -> last known message_count (from /rooms)
+
+async function pollRooms() {
+  try {
+    const r = await fetch("/rooms");
+    const data = await r.json();
+    rooms = data.rooms || [];
+    // Detect unread by comparing message_count to what we knew before
+    for (const rm of rooms) {
+      const prev = knownMsgCounts[rm.name] || 0;
+      if (rm.message_count > prev && rm.name !== currentRoom) {
+        unreadByRoom[rm.name] = (unreadByRoom[rm.name] || 0) + (rm.message_count - prev);
+      }
+      knownMsgCounts[rm.name] = rm.message_count;
+    }
+    renderRoomList();
+  } catch(e) {}
+}
+
+async function pollMessages() {
+  if (isSwitching) return; // don't poll while switching rooms
+  // Only poll the ACTIVE room — much lighter than polling all rooms
+  const name = currentRoom;
+  const since = lastTsByRoom[name] || 0;
+  try {
+    const resp = await fetch("/rooms/messages?room=" + encodeURIComponent(name) + "&since=" + since);
+    const data = await resp.json();
+    if (data.messages && data.messages.length > 0) {
+      for (const m of data.messages) {
+        if (m.ts > (lastTsByRoom[name] || 0)) lastTsByRoom[name] = m.ts;
+        addMessage(name, m);
+      }
+    }
+  } catch(e) {}
+  statusEl.classList.remove("offline");
+}
+
+async function sendMsg() {
+  const sender = senderInput.value.trim() || "anonymous";
+  const text = textInput.value.trim();
+  const pendingImage = document.getElementById("imgPreviewBar").dataset.image;
+  if (!text && !pendingImage) return;
+  // The user (human) gets role "user", everyone else gets "ai"
+  const role = (sender === "human" || sender === "user") ? "user" : "ai";
+  try {
+    const body = {room: currentRoom, sender, text: text || "(image)", role};
+    if (pendingImage) body.image = pendingImage;
+    const r = await fetch("/rooms/send", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      alert(data.reply || data.error || "blocked");
+    } else {
+      textInput.value = "";
+      clearImagePreview();
+    }
+  } catch(e) {
+    alert("send failed: " + e);
+  }
+  textInput.focus();
+}
+
+// --- Image attachment support ---
+let pendingImageData = null;
+
+function onFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    alert("Image too large (max 5 MB)");
+    event.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    pendingImageData = e.target.result; // data URL
+    showImagePreview(pendingImageData, file.name);
+  };
+  reader.readAsDataURL(file);
+  event.target.value = ""; // reset so same file can be selected again
+}
+
+function showImagePreview(dataUrl, name) {
+  const bar = document.getElementById("imgPreviewBar");
+  bar.innerHTML = "";
+  const img = document.createElement("img");
+  img.src = dataUrl;
+  bar.appendChild(img);
+  const label = document.createElement("span");
+  label.style.fontSize = "11px";
+  label.style.color = "var(--muted)";
+  label.textContent = name || "pasted image";
+  bar.appendChild(label);
+  const remove = document.createElement("button");
+  remove.className = "remove-img";
+  remove.textContent = "remove";
+  remove.onclick = clearImagePreview;
+  bar.appendChild(remove);
+  bar.style.display = "flex";
+  bar.dataset.image = ""; // will be set after upload
+  // Upload immediately so we have a URL
+  uploadImage(dataUrl);
+}
+
+async function uploadImage(dataUrl) {
+  const bar = document.getElementById("imgPreviewBar");
+  const mime = dataUrl.substring(5, dataUrl.indexOf(",")).split(";")[0];
+  try {
+    const r = await fetch("/upload", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({image: dataUrl, mime: mime, sender: senderInput.value || "human"})
+    });
+    const data = await r.json();
+    if (r.ok && data.url) {
+      bar.dataset.image = data.url;
+    } else {
+      alert("Image upload failed: " + (data.error || "unknown"));
+      clearImagePreview();
+    }
+  } catch(e) {
+    alert("Image upload failed: " + e);
+    clearImagePreview();
+  }
+}
+
+function clearImagePreview() {
+  const bar = document.getElementById("imgPreviewBar");
+  bar.innerHTML = "";
+  bar.style.display = "none";
+  bar.dataset.image = "";
+  pendingImageData = null;
+}
+
+// Paste support: Ctrl+V to paste a screenshot
+document.addEventListener("paste", function(event) {
+  const items = event.clipboardData.items;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (!file) continue;
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image too large (max 5 MB)");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        showImagePreview(e.target.result, "pasted screenshot");
+      };
+      reader.readAsDataURL(file);
+      event.preventDefault();
+      return;
+    }
+  }
+});
+
+function showCreateModal() {
+  document.getElementById("createModal").classList.add("show");
+  document.getElementById("newRoomName").focus();
+}
+function hideCreateModal() {
+  document.getElementById("createModal").classList.remove("show");
+  document.getElementById("newRoomName").value = "";
+  document.getElementById("newRoomMembers").value = "";
+}
+
+async function callAllAIs() {
+  const btn = document.getElementById("callAllBtn");
+  if (btn.disabled) return;
+  if (!confirm("Start real Devin sessions on your outpost? This can use Devin credits. Previously recorded launches will not be repeated.")) return;
+  let status = document.getElementById("callAllStatus");
+  if (!status) {
+    status = document.createElement("div");
+    status.id = "callAllStatus";
+    status.setAttribute("role", "status");
+    status.style.cssText = "padding:8px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto";
+    btn.parentElement.insertAdjacentElement("afterend", status);
+  }
+  status.textContent = "Requesting actual AI sessions. Waiting for Devin's response...";
+  btn.textContent = "Starting sessions...";
+  btn.disabled = true;
+  try {
+    // Start pollers for all known AIs + send the call-all message
+    const r = await fetch("/call_all", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        room: currentRoom,
+        text: "Hey everyone - get in the chat! The human is calling all AIs to join the conversation right now."
+      })
+    });
+    const data = await r.json();
+    const created = data.count || 0;
+    const nudged = data.nudged || [];
+    const previous = data.already_requested || [];
+    const ids = Object.entries(data.sessions || {}).map(([name, id]) => name + ": " + id);
+    status.textContent = "Created " + created + " AI session(s). Nudged " + nudged.length + " existing session(s). " + previous.length + " need review.\n" + ids.join("\n");
+    if (nudged.length) status.textContent += "\nNudged: " + nudged.join(", ");
+    if (previous.length) status.textContent += "\nAlready requested (unconfirmed): " + previous.join(", ");
+    if (!r.ok || !data.ok) {
+      status.textContent += "\nLaunch problem: " + (data.error || "No confirmed launch result.");
+      if (data.not_attempted?.length) status.textContent += "\nNot attempted: " + data.not_attempted.join(", ");
+      btn.textContent = "Launch problem";
+    } else {
+      status.textContent += "\nCreated sessions may be queued until the outpost worker is ready. A chat reply confirms arrival.";
+      btn.textContent = created ? "Created " + created + " sessions" : nudged.length ? "Nudged " + nudged.length + " sessions" : "No sessions called";
+    }
+  } catch(e) {
+    status.textContent = "Launch result unknown: " + e + ". Check Devin sessions before retrying; do not repeatedly click Call All.";
+  } finally {
+    setTimeout(() => { btn.innerHTML = "&#128276; Call All"; btn.disabled = false; }, 3000);
+  }
+}
+
+async function createRoom() {
+  const name = document.getElementById("newRoomName").value.trim();
+  const type = document.getElementById("newRoomType").value;
+  const membersStr = document.getElementById("newRoomMembers").value.trim();
+  const members = membersStr ? membersStr.split(",").map(s => s.trim()).filter(s => s) : [];
+  if (!name) { alert("Room name required"); return; }
+  try {
+    const r = await fetch("/rooms/create", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name, type, members, created_by: senderInput.value || "human"})
+    });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "failed"); return; }
+    hideCreateModal();
+    await pollRooms();
+    switchRoom(name);
+  } catch(e) {
+    alert("create failed: " + e);
+  }
+}
+
+async function joinRoom() {
+  const myName = senderInput.value.trim() || "human";
+  try {
+    const r = await fetch("/rooms/join", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({room: currentRoom, sender: myName})
+    });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "failed to join"); return; }
+    await pollRooms();
+    switchRoom(currentRoom); // refresh to hide join button
+  } catch(e) {
+    alert("join failed: " + e);
+  }
+}
+
+textInput.addEventListener("keydown", e => { if (e.key === "Enter") sendMsg(); });
+
+// --- Speech to text (Python-based, works in desktop app) ---
+const micBtn = document.getElementById("micBtn");
+let isListening = false;
+
+async function toggleMic() {
+  if (isListening) {
+    // Already listening — send a stop request to the server
+    try { await fetch("/speech/stop"); } catch(e) {}
+    return;
+  }
+  isListening = true;
+  micBtn.classList.add("listening");
+  micBtn.innerHTML = "&#128308;";
+  textInput.placeholder = "listening... click mic again to stop";
+
+  try {
+    const r = await fetch("/speech");
+    const data = await r.json();
+    if (data.text) {
+      // Append to whatever's already in the text box
+      const current = textInput.value.trim();
+      textInput.value = current ? current + " " + data.text : data.text;
+    } else if (data.error && data.error !== "stopped") {
+      // Don't alert if the user just stopped it manually
+      alert(data.error || "speech recognition failed");
+    }
+  } catch(e) {
+    alert("speech request failed: " + e);
+  } finally {
+    isListening = false;
+    micBtn.classList.remove("listening");
+    micBtn.innerHTML = "&#127908;";
+    textInput.placeholder = "type or click the mic to talk (Enter to send)";
+    textInput.focus();
+  }
+}
+
+// Init
+seenByRoom["general"] = new Set();
+switchRoom("general");
+setInterval(pollRooms, 5000);
+setInterval(pollMessages, 1500);
+pollRooms();
+</script>
+</body>
+</html>
